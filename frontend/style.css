@@ -1,0 +1,59 @@
+html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden; /* Prevent scrollbars */
+    background-color: #000; /* Black background for the whole page */
+    color: #eee;
+    font-family: sans-serif;
+    display: flex; /* Use flexbox for layout */
+    flex-direction: column; /* Stack elements vertically */
+    align-items: center; /* Center content horizontally */
+}
+
+#container {
+    text-align: center;
+    padding: 15px; /* Reduced padding */
+    /* Removed max-width to allow content to center */
+    z-index: 10; /* Keep controls above canvas */
+    background-color: rgba(0, 0, 0, 0.5); /* Slightly transparent background for controls */
+    border-radius: 8px;
+    margin-bottom: 10px; /* Space below controls */
+}
+
+
+#upload-section {
+    margin-bottom: 5px; /* Reduced margin */
+}
+
+button {
+    padding: 8px 12px; /* Slightly smaller button */
+    font-size: 0.9em;
+    cursor: pointer;
+}
+
+#statusMessage {
+    margin-top: 8px;
+    min-height: 1.2em;
+    color: #aaa;
+    font-size: 0.9em;
+}
+
+#canvas-container {
+    width: 98vw; /* Almost full viewport width */
+    height: 80vh; /* Large portion of viewport height */
+    /* Removed border */
+    position: relative; /* Keep for p5 canvas positioning */
+    margin: 0 auto; /* Center horizontally */
+}
+
+/* Hide the actual audio player visually, but it's still functional */
+#audioPlayer {
+    display: none;
+}
+#uploadProgress {
+    display: none; /* Ensure it starts hidden */
+    width: 80%;
+    margin-top: 10px;
+}

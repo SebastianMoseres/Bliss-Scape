@@ -1,0 +1,270 @@
+let particles = [];
+const numParticles = 300; // Increase particle count slightly
+
+// --- Control Parameters ---
+let flowSpeed = 0.5;
+let particleBrightness = 200;
+let noiseScale = 0.01;
+let particleColor = [180, 100, 255]; // HSB base color
+let particleStrokeWeight = 1.5;
+let noiseTime = 0; // For time evolution of noise field
+let baseHue = 180; // Starting hue
+let hueRange = 180; // How much hue can vary
+
+// --- Background Element ---
+let bgAngle = 0;
+let bgRotationSpeed = 0.0005;
+
+// --- Audio and UI Elements ---
+let audioPlayer;
+let uploadProgress;
+let statusMsg;
+
+// --- Music Data Handling ---
+let musicData = null;
+let currentDataIndex = 0;
+
+function setup() {
+    let canvasContainer = document.getElementById('canvas-container');
+    // Create canvas using container dimensions
+    let canvas = createCanvas(canvasContainer.offsetWidth, canvasContainer.offsetHeight);
+    canvas.parent('canvas-container'); // Place canvas inside the div
+
+    colorMode(HSB, 360, 100, 100, 100); // HSB mode
+    background(0); // Initial black background
+
+    // Get references to UI elements
+    audioPlayer = document.getElementById('audioPlayer');
+    uploadProgress = document.getElementById('uploadProgress');
+    statusMsg = document.getElementById('statusMessage');
+
+    // Initialize particles
+    for (let i = 0; i < numParticles; i++) {
+        particles.push(new Particle(random(width), random(height)));
+    }
+
+    // Initialize Button Listener
+    initializeUploadListener();
+}
+
+function draw() {
+    // More subtle background fade for longer trails
+    background(0, 0, 0, 5); // Lower alpha
+
+    // Draw the subtle background element
+    drawBackgroundElement();
+
+    if (musicData) {
+        updateVisualsFromMusic(); // Update parameters based on music
+    }
+
+    // Update noise time for evolution
+    noiseTime += 0.005 * flowSpeed; // Noise field drifts faster with more energy
+
+    // Update and display particles
+    for (let particle of particles) {
+        particle.maxSpeed = 2 * flowSpeed; // Update speed limit
+        particle.strokeW = particleStrokeWeight; // Update stroke weight
+        particle.update();
+        particle.display();
+        particle.checkEdges();
+    }
+}
+
+// --- NEW: Background Element Function ---
+function drawBackgroundElement() {
+    push(); // Isolate drawing state
+    translate(width / 2, height / 2); // Center rotation
+    rotate(bgAngle);
+    let numLines = 10;
+    let maxRadius = max(width, height) * 0.7;
+    strokeWeight(0.5); // Very thin lines
+    // Use the current particle color's hue, but low saturation/brightness for subtlety
+    stroke(particleColor[0], 20, 30, 15); // Low saturation, brightness, and alpha
+
+    for (let i = 0; i < numLines; i++) {
+        let angle = map(i, 0, numLines, 0, TWO_PI);
+        let x1 = cos(angle) * maxRadius * 0.1;
+        let y1 = sin(angle) * maxRadius * 0.1;
+        let x2 = cos(angle) * maxRadius;
+        let y2 = sin(angle) * maxRadius;
+        line(x1, y1, x2, y2);
+    }
+    pop(); // Restore drawing state
+    bgAngle += bgRotationSpeed; // Increment rotation
+}
+
+
+// --- Particle Class (Added strokeW property) ---
+class Particle {
+    constructor(x, y) {
+        this.pos = createVector(x, y);
+        this.vel = createVector(0, 0);
+        this.acc = createVector(0, 0);
+        this.maxSpeed = 2 * flowSpeed;
+        this.strokeW = particleStrokeWeight; // Added property
+    }
+
+    update() {
+        // Use noiseTime for 3D noise, making the field evolve
+        let angle = noise(this.pos.x * noiseScale, this.pos.y * noiseScale, noiseTime) * TWO_PI * 4; // More angular range
+        let force = p5.Vector.fromAngle(angle);
+        force.setMag(0.1);
+        this.acc.add(force);
+        this.vel.add(this.acc);
+        this.vel.limit(this.maxSpeed);
+        this.pos.add(this.vel);
+        this.acc.mult(0);
+    }
+
+    display() {
+        // Use the dynamically updated color and stroke weight
+        stroke(particleColor[0], particleColor[1], particleColor[2], particleBrightness / 2.55);
+        strokeWeight(this.strokeW); // Use dynamic stroke weight
+        point(this.pos.x, this.pos.y);
+    }
+
+    checkEdges() {
+        if (this.pos.x > width) this.pos.x = 0;
+        if (this.pos.x < 0) this.pos.x = width;
+        if (this.pos.y > height) this.pos.y = 0;
+        if (this.pos.y < 0) this.pos.y = height;
+    }
+}
+
+// --- Music Data Logic (Enhanced Mapping) ---
+function updateVisualsFromMusic() {
+    if (!musicData || !audioPlayer || audioPlayer.paused || audioPlayer.ended) {
+        return;
+    }
+     if (currentDataIndex >= musicData.timeline.length){
+        return;
+     }
+
+    let currentAudioTime = audioPlayer.currentTime;
+    while (currentDataIndex < musicData.timeline.length - 1 && musicData.timeline[currentDataIndex + 1] <= currentAudioTime) {
+        currentDataIndex++;
+    }
+    if (currentDataIndex >= musicData.timeline.length) {
+        currentDataIndex = musicData.timeline.length - 1;
+     }
+
+    // --- Enhanced Mapping ---
+    let energy = musicData.rms_energy[currentDataIndex]; // 0..1
+    let centroid = musicData.spectral_centroid[currentDataIndex]; // 0..1 (brightness)
+    let bandwidth = musicData.spectral_bandwidth[currentDataIndex]; // 0..1 (richness/noisiness)
+    // let overallBPM = musicData.overall_bpm; // Could use this too
+
+    // Energy -> Speed and Brightness
+    flowSpeed = map(energy, 0, 1, 0.1, 1.8); // Wider speed range
+    particleBrightness = map(energy, 0, 1, 40, 255); // Wider brightness range
+
+    // Energy -> Particle Size/Weight
+    particleStrokeWeight = map(energy, 0, 1, 0.5, 3.5); // Vary size more
+
+    // Bandwidth -> Noise Detail and Hue Range
+    noiseScale = map(bandwidth, 0, 1, 0.003, 0.025); // More detail with higher bandwidth
+    hueRange = map(bandwidth, 0, 1, 90, 270); // Wider color range for richer sounds
+
+    // Centroid -> Base Hue (Shift the color palette)
+    baseHue = map(centroid, 0, 1, 150, 330); // Map brightness to Blue-Magenta range
+
+    // Calculate current hue within the dynamic range
+    // Use Perlin noise for smoother color transitions over time? Or just energy?
+    // Let's use energy to shift within the current hue range for now
+    let hueShift = map(energy, 0, 1, -hueRange / 2, hueRange / 2);
+    let currentHue = (baseHue + hueShift) % 360; // Wrap around 360 degrees
+
+    // Set particle color (HSB)
+    particleColor[0] = currentHue;
+    particleColor[1] = map(energy, 0, 1, 70, 100); // Saturation based on energy
+    particleColor[2] = 100; // Keep max brightness for particles themselves
+
+    // Map BPM to background rotation? (Subtle effect)
+     if (musicData.overall_bpm > 0) {
+        bgRotationSpeed = map(musicData.overall_bpm, 50, 180, 0.0002, 0.0015, true); // Clamp values
+     }
+}
+
+
+// --- UI Interaction (Keep as is from previous step) ---
+function initializeUploadListener() {
+    document.getElementById('uploadButton').addEventListener('click', () => {
+        let fileInput = document.getElementById('audioFileInput');
+        if (fileInput.files.length === 0) {
+            statusMsg.textContent = 'Please select an audio file first.';
+            return;
+        }
+        let file = fileInput.files[0];
+        let formData = new FormData();
+        formData.append('audioFile', file);
+
+        // Reset state
+        statusMsg.textContent = 'Preparing upload...';
+        uploadProgress.style.display = 'block';
+        uploadProgress.value = 0;
+        audioPlayer.style.display = 'none';
+        audioPlayer.pause();
+        audioPlayer.removeAttribute('src');
+        musicData = null;
+        currentDataIndex = 0;
+
+        // XMLHttpRequest
+        let xhr = new XMLHttpRequest();
+        xhr.open('POST', '/analyze', true);
+
+        xhr.upload.onprogress = function (event) { /* ... (keep as is) ... */
+            if (event.lengthComputable) {
+                let percentComplete = (event.loaded / event.total) * 100;
+                uploadProgress.value = percentComplete;
+                statusMsg.textContent = `Uploading: ${Math.round(percentComplete)}%`;
+            }
+        };
+        xhr.onload = function () { /* ... (keep as is, including audio playback logic) ... */
+             uploadProgress.style.display = 'none'; // Hide progress bar
+            if (xhr.status === 200) {
+                statusMsg.textContent = 'Analysis complete! Starting playback...';
+                try {
+                    let data = JSON.parse(xhr.responseText);
+                     if (data.error) { // Handle analysis errors reported by backend
+                         statusMsg.textContent = `Analysis Error: ${data.error}`;
+                         console.error('Analysis Error:', data.error);
+                         musicData = null;
+                     } else {
+                        console.log('Analysis Received:', data);
+                        musicData = data;
+                        let objectURL = URL.createObjectURL(file);
+                        audioPlayer.src = objectURL;
+                        // Don't make player visible
+                        audioPlayer.oncanplaythrough = () => {
+                            currentDataIndex = 0;
+                            audioPlayer.play();
+                            statusMsg.textContent = 'Playing...';
+                        };
+                        audioPlayer.onended = () => {
+                            statusMsg.textContent = 'Playback finished.';
+                            musicData = null;
+                        };
+                    }
+                } catch (e) {
+                    statusMsg.textContent = 'Error processing analysis.';
+                    console.error('Processing Error:', e);
+                    musicData = null;
+                }
+            } else {
+                statusMsg.textContent = `Error: Upload/Analysis Failed (Status: ${xhr.status})`;
+                console.error('Upload/Analysis Error:', xhr.statusText);
+                musicData = null;
+            }
+        };
+        xhr.onerror = function () { /* ... (keep as is) ... */
+             uploadProgress.style.display = 'none';
+             statusMsg.textContent = 'Network Error during upload.';
+             console.error('Network Error');
+             musicData = null;
+        };
+
+        statusMsg.textContent = 'Uploading (0%)...';
+        xhr.send(formData);
+    });
+}

@@ -1,0 +1,7 @@
+Flask==3.0.2
+librosa>=0.11.0 # Use a recent version known to have wheels
+numpy>=1.23.0   # Allow newer numpy compatible with recent scipy/librosa
+Werkzeug==3.0.1
+setuptools==69.2.0
+soundfile==0.13.1
+scipy>=1.13.0   # Use a recent version known to have wheels

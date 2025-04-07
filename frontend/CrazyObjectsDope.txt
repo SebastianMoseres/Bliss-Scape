@@ -1,0 +1,335 @@
+// --- Shape Definitions ---
+const SHAPES = {
+    NONE: 'NONE',
+    SMILEY: 'SMILEY',
+    HEART: 'HEART',
+    MUSIC_NOTE: 'MUSIC_NOTE',
+    EIFFEL_TOWER: 'EIFFEL_TOWER',
+    MONA_LISA_FRAME: 'MONA_LISA_FRAME',
+    MOON: 'MOON',
+    GREAT_WALL: 'GREAT_WALL',
+    TAJ_MAHAL: 'TAJ_MAHAL',
+    FERRARI: 'FERRARI',
+    IPHONE: 'IPHONE',
+    COLOSSEUM: 'COLOSSEUM',
+    LIGHTSABER: 'LIGHTSABER',
+    STATUE_OF_LIBERTY: 'STATUE_OF_LIBERTY',
+    PYRAMIDS: 'PYRAMIDS',
+    SPACESUIT: 'SPACESUIT',
+    JETPACK: 'JETPACK',
+    LEANING_TOWER: 'LEANING_TOWER',
+    TITANIC: 'TITANIC',
+    ISS: 'ISS',
+    GOLD_BAR: 'GOLD_BAR',
+    DIAMOND: 'DIAMOND',
+    GLOBE: 'GLOBE',
+    ROLLER_COASTER: 'ROLLER_COASTER'
+};
+let currentShape = SHAPES.NONE;
+let targetPoints = [];
+const SHAPE_SCALE = 0.35;
+
+// --- Particle Behaviors ---
+const BEHAVIOR = { FLOW: 'FLOW', SEEK: 'SEEK' };
+
+// --- Global State ---
+let particles = [];
+const numParticles = 600;
+let shapeFormationActive = false;
+const SHAPE_DURATION = 9000;
+const FLOW_DURATION = 10000;
+let lastModeSwitchTime = 0;
+let currentEnergy = 0.1, currentCentroid = 0.5, currentBandwidth = 0.3, currentBPM = 120;
+let particleColor = [180, 100, 100, 80];
+let particleStrokeWeight = 1.5;
+let noiseScale = 0.01, noiseTime = 0;
+let bgAngle = 0, bgRotationSpeed = 0.0005;
+let audioPlayer, uploadProgress, statusMsg;
+let musicData = null, currentDataIndex = 0;
+
+// =============================================================
+// SHAPE GENERATION HELPERS
+// =============================================================
+function sampleLine(x1, y1, x2, y2, numSamples, pointsArray) { /* ... as before ... */
+    for (let i = 0; i <= numSamples; i++) { let t = i / numSamples; pointsArray.push(createVector(lerp(x1, x2, t), lerp(y1, y2, t))); }
+}
+function sampleArc(cx, cy, radius, startAngle, stopAngle, numSamples, pointsArray) { /* ... as before ... */
+    for (let i = 0; i <= numSamples; i++) { let t = i / numSamples; let angle = lerp(startAngle, stopAngle, t); pointsArray.push(createVector(cx + cos(angle) * radius, cy + sin(angle) * radius)); }
+}
+
+// =============================================================
+// SHAPE GENERATION FUNCTIONS (All shapes)
+// =============================================================
+function generateSmileyPoints(centerX, centerY, scale) { /* ... as before ... */
+    let points = []; let radius = height * scale; for (let angle = 0; angle < TWO_PI; angle += PI / 20) { points.push(createVector(centerX + cos(angle) * radius, centerY + sin(angle) * radius)); } let eyeOffsetX = radius * 0.4; let eyeOffsetY = -radius * 0.3; points.push(createVector(centerX - eyeOffsetX, centerY + eyeOffsetY)); points.push(createVector(centerX + eyeOffsetX, centerY + eyeOffsetY)); let smileStartY = radius * 0.2; let smileRadius = radius * 0.6; for (let angle = PI * 0.1; angle < PI * 0.9; angle += PI / 15) { points.push(createVector(centerX + cos(angle + PI / 2) * smileRadius, centerY + smileStartY + sin(angle + PI / 2) * smileRadius)); } return points;
+ }
+function generateHeartPoints(centerX, centerY, scale) { /* ... as before ... */
+    let points = []; let radius = height * scale * 1.2; for (let angle = 0; angle < TWO_PI; angle += PI / 30) { let x = centerX + radius * (16 * pow(sin(angle), 3)); let y = centerY - radius * (13 * cos(angle) - 5 * cos(2 * angle) - 2 * cos(3 * angle) - cos(4 * angle)); y = centerY + (y - centerY) * 0.8 - radius * 0.2; points.push(createVector(x, y)); } return points;
+}
+function generateMusicNotePoints(centerX, centerY, scale) { /* ... as before ... */
+    let points = []; let headRadius = height * scale * 0.4; let stemHeight = height * scale * 1.5; let stemWidth = headRadius * 0.3; let flagWidth = headRadius * 0.8; let flagHeight = headRadius * 0.5; for (let angle = 0; angle < TWO_PI; angle += PI / 15) { points.push(createVector(centerX + cos(angle) * headRadius, centerY + sin(angle) * headRadius * 0.8)); } let stemTopY = centerY - stemHeight; for (let y = centerY; y > stemTopY; y -= stemHeight / 15) { points.push(createVector(centerX + headRadius - stemWidth / 2, y)); } let flagStartX = centerX + headRadius - stemWidth / 2; let flagStartY = stemTopY; for (let i = 0; i <= 10; i++) { let t = i / 10; let x = flagStartX + pow(t, 2) * flagWidth; let y = flagStartY + t * flagHeight; points.push(createVector(x, y)); } return points;
+}
+function generateEiffelTowerPoints(centerX, centerY, scale) { /* ... as before ... */
+    let points = []; let totalH = height * scale * 2.5; let baseW = totalH * 0.4; let midW = baseW * 0.3; let topW = baseW * 0.05; let midH = totalH * 0.5; let topH = totalH * 0.9; let bottomY = centerY + totalH * 0.5; let topY = centerY - totalH * 0.5; let legCurve = 0.2; sampleLine(centerX - baseW/2, bottomY, centerX - midW/2 - baseW*legCurve, midH, 15, points); sampleLine(centerX - midW/2 - baseW*legCurve, midH, centerX - midW/2, midH, 5, points); sampleLine(centerX + baseW/2, bottomY, centerX + midW/2 + baseW*legCurve, midH, 15, points); sampleLine(centerX + midW/2 + baseW*legCurve, midH, centerX + midW/2, midH, 5, points); sampleArc(centerX, bottomY - totalH*0.1, baseW * 0.3, PI*1.1, PI*1.9, 15, points); sampleLine(centerX - midW/2, midH, centerX - topW/2, topH, 20, points); sampleLine(centerX + midW/2, midH, centerX + topW/2, topH, 20, points); sampleLine(centerX - topW/2, topH, centerX + topW/2, topH, 5, points); sampleLine(centerX, topH, centerX, topY, 10, points); sampleLine(centerX - midW*0.8, midH, centerX + midW*0.8, midH, 10, points); sampleLine(centerX - midW*0.4, midH + totalH*0.2, centerX + midW*0.4, midH + totalH*0.2, 10, points); return points;
+}
+function generateMonaLisaFramePoints(centerX, centerY, scale) { /* ... as before ... */
+    let points = []; let frameW = width * scale * 0.8; let frameH = height * scale * 1.2; let outerX = frameW / 2; let outerY = frameH / 2; let innerX = outerX * 0.8; let innerY = outerY * 0.8; sampleLine(centerX - outerX, centerY - outerY, centerX + outerX, centerY - outerY, 20, points); sampleLine(centerX + outerX, centerY - outerY, centerX + outerX, centerY + outerY, 25, points); sampleLine(centerX + outerX, centerY + outerY, centerX - outerX, centerY + outerY, 20, points); sampleLine(centerX - outerX, centerY + outerY, centerX - outerX, centerY - outerY, 25, points); sampleLine(centerX - innerX, centerY - innerY, centerX + innerX, centerY - innerY, 15, points); sampleLine(centerX + innerX, centerY - innerY, centerX + innerX, centerY + innerY, 20, points); sampleLine(centerX + innerX, centerY + innerY, centerX - innerX, centerY + innerY, 15, points); sampleLine(centerX - innerX, centerY + innerY, centerX - innerX, centerY - innerY, 20, points); sampleArc(centerX - outerX, centerY - outerY, outerX * 0.1, PI, PI * 1.5, 5, points); sampleArc(centerX + outerX, centerY - outerY, outerX * 0.1, PI * 1.5, TWO_PI, 5, points); sampleArc(centerX + outerX, centerY + outerY, outerX * 0.1, 0, PI * 0.5, 5, points); sampleArc(centerX - outerX, centerY + outerY, outerX * 0.1, PI * 0.5, PI, 5, points); return points;
+}
+function generateMoonPoints(centerX, centerY, scale) { /* ... as before ... */
+    let points = []; let radius = height * scale; sampleArc(centerX, centerY, radius, 0, TWO_PI, 40, points); sampleArc(centerX - radius*0.4, centerY - radius*0.3, radius*0.2, 0, TWO_PI, 10, points); sampleArc(centerX + radius*0.3, centerY + radius*0.5, radius*0.15, 0, TWO_PI, 8, points); sampleArc(centerX + radius*0.5, centerY - radius*0.2, radius*0.25, PI*0.5, PI*1.8, 10, points); return points;
+}
+function generateGreatWallPoints(centerX, centerY, scale) { /* ... as before ... */
+    let points = []; let wallLength = width * 0.8; let startX = centerX - wallLength / 2; let yPos = centerY; let segmentLength = wallLength / 30; let amplitude = height * scale * 0.3; let crenHeight = amplitude * 0.2; for (let i = 0; i <= 30; i++) { let currentX = startX + i * segmentLength; let currentY = yPos + sin(i * PI / 10) * amplitude; let nextX = startX + (i + 1) * segmentLength; let nextY = yPos + sin((i + 1) * PI / 10) * amplitude; sampleLine(currentX, currentY, nextX, nextY, 3, points); if (i % 4 === 0) { sampleLine(currentX, currentY, currentX, currentY - crenHeight, 2, points); sampleLine(currentX, currentY - crenHeight, currentX + segmentLength*0.4, currentY - crenHeight, 2, points); sampleLine(currentX + segmentLength*0.4, currentY - crenHeight, currentX + segmentLength*0.4, currentY, 2, points); } } return points;
+}
+function generateTajMahalPoints(centerX, centerY, scale) { /* ... as before ... */
+    let points = []; let baseH = height * scale * 0.5; let baseW = width * scale * 1.5; let domeH = height * scale * 1.0; let domeW = baseW * 0.4; let minaretH = domeH * 1.2; let minaretW = baseW * 0.05; let minaretOffset = baseW * 0.4; let bottomY = centerY + baseH * 0.5; let topDomeY = centerY - baseH * 0.5 - domeH; sampleLine(centerX - baseW/2, bottomY, centerX + baseW/2, bottomY, 20, points); sampleLine(centerX - baseW/2, bottomY, centerX - baseW/2, centerY - baseH*0.5, 10, points); sampleLine(centerX + baseW/2, bottomY, centerX + baseW/2, centerY - baseH*0.5, 10, points); sampleLine(centerX - baseW/2, centerY - baseH*0.5, centerX + baseW/2, centerY - baseH*0.5, 20, points); sampleArc(centerX, centerY - baseH*0.5, domeW/2, PI, TWO_PI, 25, points); sampleLine(centerX - domeW*0.1, topDomeY + domeH*0.3, centerX, topDomeY, 3, points); sampleLine(centerX + domeW*0.1, topDomeY + domeH*0.3, centerX, topDomeY, 3, points); let minaretBaseY = centerY - baseH * 0.5; let minaretTopY = minaretBaseY - minaretH; sampleLine(centerX - minaretOffset - minaretW/2, minaretBaseY, centerX - minaretOffset + minaretW/2, minaretBaseY, 3, points); sampleLine(centerX - minaretOffset - minaretW/2, minaretBaseY, centerX - minaretOffset - minaretW/2, minaretTopY, 15, points); sampleLine(centerX - minaretOffset + minaretW/2, minaretBaseY, centerX - minaretOffset + minaretW/2, minaretTopY, 15, points); sampleLine(centerX - minaretOffset - minaretW/2, minaretTopY, centerX - minaretOffset + minaretW/2, minaretTopY, 3, points); sampleLine(centerX + minaretOffset - minaretW/2, minaretBaseY, centerX + minaretOffset + minaretW/2, minaretBaseY, 3, points); sampleLine(centerX + minaretOffset - minaretW/2, minaretBaseY, centerX + minaretOffset - minaretW/2, minaretTopY, 15, points); sampleLine(centerX + minaretOffset + minaretW/2, minaretBaseY, centerX + minaretOffset + minaretW/2, minaretTopY, 15, points); sampleLine(centerX + minaretOffset - minaretW/2, minaretTopY, centerX + minaretOffset + minaretW/2, minaretTopY, 3, points); return points;
+}
+function generateFerrariPoints(centerX, centerY, scale) { /* ... as before ... */
+    let points = []; let carLength = width * scale * 1.8; let carHeight = height * scale * 0.5; let wheelRadius = carHeight * 0.3; let wheelOffsetY = carHeight * 0.4; let wheelDist = carLength * 0.6; let frontX = centerX - carLength / 2; let backX = centerX + carLength / 2; let bottomY = centerY + wheelOffsetY; sampleArc(centerX - wheelDist/2, bottomY - wheelRadius, wheelRadius, 0, TWO_PI, 15, points); sampleArc(centerX + wheelDist/2, bottomY - wheelRadius, wheelRadius, 0, TWO_PI, 15, points); let roofH = -carHeight * 0.6; let hoodH = -carHeight * 0.1; let trunkH = -carHeight * 0.2; sampleLine(frontX, bottomY, centerX - wheelDist/2 - wheelRadius, bottomY, 5, points); sampleLine(centerX - wheelDist/2 + wheelRadius, bottomY, centerX + wheelDist/2 - wheelRadius, bottomY, 5, points); sampleLine(centerX + wheelDist/2 + wheelRadius, bottomY, backX, bottomY, 5, points); sampleLine(frontX, bottomY, frontX + carLength * 0.1, centerY + hoodH, 5, points); sampleLine(frontX + carLength * 0.1, centerY + hoodH, centerX - carLength*0.1, centerY + roofH, 8, points); sampleLine(centerX - carLength*0.1, centerY + roofH, centerX + carLength*0.2, centerY + roofH, 6, points); sampleLine(centerX + carLength*0.2, centerY + roofH, backX - carLength*0.1, centerY + trunkH, 8, points); sampleLine(backX - carLength*0.1, centerY + trunkH, backX, bottomY, 5, points); return points;
+}
+function generateIphonePoints(centerX, centerY, scale) { /* ... as before ... */
+    let points = []; let phoneW = width * scale * 0.6; let phoneH = height * scale * 1.2; let cornerRadius = phoneW * 0.1; let x1 = centerX - phoneW/2 + cornerRadius; let x2 = centerX + phoneW/2 - cornerRadius; let y1 = centerY - phoneH/2 + cornerRadius; let y2 = centerY + phoneH/2 - cornerRadius; sampleLine(x1, centerY - phoneH/2, x2, centerY - phoneH/2, 15, points); sampleLine(x1, centerY + phoneH/2, x2, centerY + phoneH/2, 15, points); sampleLine(centerX - phoneW/2, y1, centerX - phoneW/2, y2, 25, points); sampleLine(centerX + phoneW/2, y1, centerX + phoneW/2, y2, 25, points); sampleArc(x1, y1, cornerRadius, PI, PI * 1.5, 8, points); sampleArc(x2, y1, cornerRadius, PI * 1.5, TWO_PI, 8, points); sampleArc(x2, y2, cornerRadius, 0, PI * 0.5, 8, points); sampleArc(x1, y2, cornerRadius, PI * 0.5, PI, 8, points); points.push(createVector(centerX, centerY - phoneH/2 + cornerRadius*0.5)); return points;
+}
+function generateColosseumPoints(centerX, centerY, scale) { /* ... as before ... */
+    let points = []; let outerW = width * scale * 1.8; let outerH = height * scale * 0.8; let innerW = outerW * 0.6; let innerH = outerH * 0.6; for (let angle = 0; angle < TWO_PI; angle += PI / 30) { points.push(createVector(centerX + cos(angle) * outerW / 2, centerY + sin(angle) * outerH / 2)); } for (let angle = 0; angle < TWO_PI; angle += PI / 25) { points.push(createVector(centerX + cos(angle) * innerW / 2, centerY + sin(angle) * innerH / 2)); } for (let angle = 0; angle < TWO_PI; angle += PI / 28) { let w = lerp(innerW, outerW, 0.4); let h = lerp(innerH, outerH, 0.4); points.push(createVector(centerX + cos(angle) * w / 2, centerY + sin(angle) * h / 2)); } for (let angle = 0; angle < TWO_PI; angle += PI / 29) { let w = lerp(innerW, outerW, 0.7); let h = lerp(innerH, outerH, 0.7); points.push(createVector(centerX + cos(angle) * w / 2, centerY + sin(angle) * h / 2)); } return points;
+}
+function generateLightsaberPoints(centerX, centerY, scale) { /* ... as before ... */
+    let points = []; let handleH = height * scale * 0.6; let handleW = handleH * 0.2; let beamL = height * scale * 2.5; let beamW = handleW * 0.6; let handleTopY = centerY - handleH / 2; let handleBottomY = centerY + handleH / 2; let beamBottomY = handleTopY; let beamTopY = handleTopY - beamL; sampleLine(centerX - handleW/2, handleBottomY, centerX + handleW/2, handleBottomY, 5, points); sampleLine(centerX - handleW/2, handleBottomY, centerX - handleW/2, handleTopY, 15, points); sampleLine(centerX + handleW/2, handleBottomY, centerX + handleW/2, handleTopY, 15, points); sampleLine(centerX - handleW/2, handleTopY, centerX + handleW/2, handleTopY, 5, points); sampleLine(centerX - beamW/2, beamBottomY, centerX - beamW/2, beamTopY, 30, points); sampleLine(centerX + beamW/2, beamBottomY, centerX + beamW/2, beamTopY, 30, points); sampleArc(centerX, beamTopY, beamW/2, PI, TWO_PI, 5, points); return points;
+}
+function generateStatueOfLibertyPoints(centerX, centerY, scale) { /* ... as before ... */
+    let points = []; let totalH = height * scale * 2.5; let baseH = totalH * 0.3; let bodyH = totalH * 0.4; let headH = totalH * 0.1; let armH = totalH * 0.4; let crownW = totalH * 0.15; let bodyW = totalH * 0.2; let torchSize = totalH * 0.08; let baseY = centerY + totalH * 0.5; let bodyBottomY = baseY - baseH; let bodyTopY = bodyBottomY - bodyH; let headBottomY = bodyTopY; let headTopY = headBottomY - headH; let armBottomY = bodyTopY + bodyH * 0.1; let armTopY = armBottomY - armH; sampleLine(centerX - bodyW*0.8, baseY, centerX + bodyW*0.8, baseY, 10, points); sampleLine(centerX - bodyW*0.8, baseY, centerX - bodyW*0.5, bodyBottomY, 8, points); sampleLine(centerX + bodyW*0.8, baseY, centerX + bodyW*0.5, bodyBottomY, 8, points); sampleLine(centerX - bodyW*0.5, bodyBottomY, centerX + bodyW*0.5, bodyBottomY, 8, points); sampleLine(centerX - bodyW*0.4, bodyBottomY, centerX - bodyW*0.4, bodyTopY, 15, points); sampleLine(centerX + bodyW*0.4, bodyBottomY, centerX + bodyW*0.4, bodyTopY, 15, points); sampleLine(centerX - bodyW*0.2, bodyTopY, centerX + bodyW*0.2, bodyTopY, 5, points); sampleLine(centerX - bodyW*0.25, headBottomY, centerX - bodyW*0.25, headTopY, 5, points); sampleLine(centerX + bodyW*0.25, headBottomY, centerX + bodyW*0.25, headTopY, 5, points); sampleLine(centerX - bodyW*0.25, headTopY, centerX + bodyW*0.25, headTopY, 5, points); for(let i = 0; i < 7; i++) { let angle = map(i, 0, 6, -PI/3, PI/3) - PI/2; sampleLine(centerX, headTopY, centerX + cos(angle)*crownW, headTopY + sin(angle)*crownW, 3, points); } let armX = centerX + bodyW*0.3; sampleLine(armX, armBottomY, armX, armTopY, 15, points); sampleLine(armX - torchSize/2, armTopY, armX + torchSize/2, armTopY, 3, points); sampleLine(armX, armTopY, armX, armTopY - torchSize*0.8, 4, points); sampleArc(armX, armTopY - torchSize*1.2, torchSize/2, 0, TWO_PI, 8, points); return points;
+}
+function generatePyramidsPoints(centerX, centerY, scale) { /* ... as before ... */
+    let points = []; let baseW = width * scale * 1.0; let PyrH = height * scale * 1.0; let PyrW = baseW * 0.5; let bottomY = centerY + PyrH * 0.3; let bigTopY = bottomY - PyrH; sampleLine(centerX - PyrW/2, bottomY, centerX + PyrW/2, bottomY, 15, points); sampleLine(centerX - PyrW/2, bottomY, centerX, bigTopY, 20, points); sampleLine(centerX + PyrW/2, bottomY, centerX, bigTopY, 20, points); let smallOffset = baseW * 0.4; let smallScale = 0.6; let leftX = centerX - smallOffset; let leftTopY = bottomY - PyrH * smallScale; sampleLine(leftX - PyrW*smallScale/2, bottomY, leftX + PyrW*smallScale/2, bottomY, 10, points); sampleLine(leftX - PyrW*smallScale/2, bottomY, leftX, leftTopY, 12, points); sampleLine(leftX + PyrW*smallScale/2, bottomY, leftX, leftTopY, 12, points); let rightX = centerX + smallOffset; let rightTopY = bottomY - PyrH * smallScale; sampleLine(rightX - PyrW*smallScale/2, bottomY, rightX + PyrW*smallScale/2, bottomY, 10, points); sampleLine(rightX - PyrW*smallScale/2, bottomY, rightX, rightTopY, 12, points); sampleLine(rightX + PyrW*smallScale/2, bottomY, rightX, rightTopY, 12, points); return points;
+}
+function generateSpacesuitPoints(centerX, centerY, scale) { /* ... as before ... */
+    let points = []; let suitH = height * scale * 1.8; let suitW = suitH * 0.6; let helmetRadius = suitW * 0.35; let torsoH = suitH * 0.5; let legH = suitH * 0.4; let armW = suitW * 0.3; let topY = centerY - suitH / 2; let helmetCenterY = topY + helmetRadius; let torsoTopY = helmetCenterY + helmetRadius * 0.8; let torsoBottomY = torsoTopY + torsoH; let bottomY = torsoBottomY + legH; sampleArc(centerX, helmetCenterY, helmetRadius, 0, TWO_PI, 30, points); sampleLine(centerX - suitW/2, torsoTopY, centerX + suitW/2, torsoTopY, 10, points); sampleLine(centerX - suitW/2, torsoTopY, centerX - suitW/2, torsoBottomY, 15, points); sampleLine(centerX + suitW/2, torsoTopY, centerX + suitW/2, torsoBottomY, 15, points); sampleLine(centerX - suitW/2, torsoBottomY, centerX + suitW/2, torsoBottomY, 10, points); let legW = suitW * 0.35; sampleLine(centerX - legW*1.2, torsoBottomY, centerX - legW*0.2, torsoBottomY, 5, points); sampleLine(centerX - legW*1.2, torsoBottomY, centerX - legW*1.2, bottomY, 10, points); sampleLine(centerX - legW*0.2, torsoBottomY, centerX - legW*0.2, bottomY, 10, points); sampleLine(centerX - legW*1.2, bottomY, centerX - legW*0.2, bottomY, 5, points); sampleLine(centerX + legW*0.2, torsoBottomY, centerX + legW*1.2, torsoBottomY, 5, points); sampleLine(centerX + legW*0.2, torsoBottomY, centerX + legW*0.2, bottomY, 10, points); sampleLine(centerX + legW*1.2, torsoBottomY, centerX + legW*1.2, bottomY, 10, points); sampleLine(centerX + legW*0.2, bottomY, centerX + legW*1.2, bottomY, 5, points); let armStartY = torsoTopY + torsoH * 0.1; let armEndY = armStartY + torsoH * 0.7; sampleLine(centerX - suitW/2, armStartY, centerX - suitW/2 - armW, armEndY, 10, points); sampleLine(centerX + suitW/2, armStartY, centerX + suitW/2 + armW, armEndY, 10, points); return points;
+}
+function generateJetpackPoints(centerX, centerY, scale) { /* ... as before ... */
+    let points = []; let packH = height * scale * 0.8; let packW = packH * 0.4; let nozzleH = packH * 0.2; let nozzleW = packW * 0.6; let spacing = packW * 0.1; let topY = centerY - packH / 2; let bottomY = centerY + packH / 2; let nozzleBottomY = bottomY + nozzleH; let leftX = centerX - spacing/2 - packW/2; sampleLine(leftX - packW/2, topY, leftX + packW/2, topY, 5, points); sampleLine(leftX - packW/2, topY, leftX - packW/2, bottomY, 15, points); sampleLine(leftX + packW/2, topY, leftX + packW/2, bottomY, 15, points); sampleLine(leftX - nozzleW/2, bottomY, leftX + nozzleW/2, bottomY, 4, points); sampleLine(leftX - nozzleW/2, bottomY, leftX - nozzleW/2, nozzleBottomY, 4, points); sampleLine(leftX + nozzleW/2, bottomY, leftX + nozzleW/2, nozzleBottomY, 4, points); sampleLine(leftX - nozzleW/2, nozzleBottomY, leftX + nozzleW/2, nozzleBottomY, 4, points); let rightX = centerX + spacing/2 + packW/2; sampleLine(rightX - packW/2, topY, rightX + packW/2, topY, 5, points); sampleLine(rightX - packW/2, topY, rightX - packW/2, bottomY, 15, points); sampleLine(rightX + packW/2, topY, rightX + packW/2, bottomY, 15, points); sampleLine(rightX - nozzleW/2, bottomY, rightX + nozzleW/2, bottomY, 4, points); sampleLine(rightX - nozzleW/2, bottomY, rightX - nozzleW/2, nozzleBottomY, 4, points); sampleLine(rightX + nozzleW/2, bottomY, rightX + nozzleW/2, nozzleBottomY, 4, points); sampleLine(rightX - nozzleW/2, nozzleBottomY, rightX + nozzleW/2, nozzleBottomY, 4, points); return points;
+}
+function generateLeaningTowerPoints(centerX, centerY, scale) { /* ... as before ... */
+    let points = []; let towerH = height * scale * 1.8; let towerW = towerH * 0.2; let leanAngle = PI / 20; let bottomY = centerY + towerH / 2; let topY = centerY - towerH / 2; let bottomLX = centerX - towerW/2 * cos(leanAngle) + bottomY * sin(leanAngle); let bottomLY = bottomY * cos(leanAngle) + towerW/2 * sin(leanAngle); let bottomRX = centerX + towerW/2 * cos(leanAngle) + bottomY * sin(leanAngle); let bottomRY = bottomY * cos(leanAngle) - towerW/2 * sin(leanAngle); let topLX = centerX - towerW/2 * cos(leanAngle) + topY * sin(leanAngle); let topLY = topY * cos(leanAngle) + towerW/2 * sin(leanAngle); let topRX = centerX + towerW/2 * cos(leanAngle) + topY * sin(leanAngle); let topRY = topY * cos(leanAngle) - towerW/2 * sin(leanAngle); let centerOffsetX = (bottomY - topY) * sin(leanAngle) / 2; bottomLX -= centerOffsetX; bottomRX -= centerOffsetX; topLX -= centerOffsetX; topRX -= centerOffsetX; sampleLine(bottomLX, bottomLY, bottomRX, bottomRY, 8, points); sampleLine(bottomRX, bottomRY, topRX, topRY, 25, points); sampleLine(topRX, topRY, topLX, topLY, 8, points); sampleLine(topLX, topLY, bottomLX, bottomLY, 25, points); for (let i = 1; i <= 5; i++) { let t = i / 6; let yLevel = lerp(bottomY, topY, t); let levelLX = centerX - towerW/2 * cos(leanAngle) + yLevel * sin(leanAngle) - centerOffsetX; let levelLY = yLevel * cos(leanAngle) + towerW/2 * sin(leanAngle); let levelRX = centerX + towerW/2 * cos(leanAngle) + yLevel * sin(leanAngle) - centerOffsetX; let levelRY = yLevel * cos(leanAngle) - towerW/2 * sin(leanAngle); sampleLine(levelLX, levelLY, levelRX, levelRY, 6, points); } return points;
+}
+function generateTitanicPoints(centerX, centerY, scale) { /* ... as before ... */
+    let points = []; let shipL = width * scale * 2.0; let shipH = height * scale * 0.8; let deckH = shipH * 0.4; let funnelH = shipH * 0.5; let funnelW = shipL * 0.04; let frontX = centerX - shipL / 2; let backX = centerX + shipL / 2; let bottomY = centerY + shipH / 2; let deckY = bottomY - deckH; let topY = deckY - (shipH - deckH); sampleLine(frontX, deckY, frontX + shipL*0.1, bottomY, 10, points); sampleLine(frontX + shipL*0.1, bottomY, backX - shipL*0.05, bottomY, 30, points); sampleLine(backX - shipL*0.05, bottomY, backX, deckY - deckH*0.2, 8, points); sampleLine(backX, deckY - deckH*0.2, backX, deckY, 3, points); sampleLine(backX, deckY, frontX, deckY, 40, points); let structureX1 = centerX - shipL*0.3; let structureX2 = centerX + shipL*0.3; let structureH = (shipH - deckH) * 0.6; sampleLine(structureX1, deckY, structureX1, deckY - structureH, 8, points); sampleLine(structureX2, deckY, structureX2, deckY - structureH, 8, points); sampleLine(structureX1, deckY - structureH, structureX2, deckY - structureH, 15, points); let funnelSpacing = shipL * 0.15; for (let i = 0; i < 4; i++) { let funnelX = centerX - shipL*0.2 + i * funnelSpacing; let funnelTopY = deckY - structureH - funnelH; sampleLine(funnelX - funnelW/2, deckY - structureH, funnelX - funnelW/2, funnelTopY, 10, points); sampleLine(funnelX + funnelW/2, deckY - structureH, funnelX + funnelW/2, funnelTopY, 10, points); sampleLine(funnelX - funnelW/2, funnelTopY, funnelX + funnelW/2, funnelTopY, 3, points); } return points;
+}
+function generateISSPoints(centerX, centerY, scale) { /* ... as before ... */
+    let points = []; let trussL = width * scale * 2.5; let trussH = height * scale * 0.1; let panelL = trussL * 0.3; let panelW = trussH * 5; let trussY = centerY; let leftX = centerX - trussL / 2; let rightX = centerX + trussL / 2; sampleLine(leftX, trussY - trussH/2, rightX, trussY - trussH/2, 40, points); sampleLine(leftX, trussY + trussH/2, rightX, trussY + trussH/2, 40, points); sampleLine(leftX, trussY - trussH/2, leftX, trussY + trussH/2, 3, points); sampleLine(rightX, trussY - trussH/2, rightX, trussY + trussH/2, 3, points); let panelPositions = [-0.4, -0.3, 0.3, 0.4]; for(let pos of panelPositions) { let panelCenterX = centerX + trussL * pos; let panelTopY = trussY - panelW / 2; let panelBottomY = trussY + panelW / 2; sampleLine(panelCenterX - panelL/2, panelTopY, panelCenterX + panelL/2, panelTopY, 10, points); sampleLine(panelCenterX - panelL/2, panelBottomY, panelCenterX + panelL/2, panelBottomY, 10, points); sampleLine(panelCenterX - panelL/2, panelTopY, panelCenterX - panelL/2, panelBottomY, 15, points); sampleLine(panelCenterX + panelL/2, panelTopY, panelCenterX + panelL/2, panelBottomY, 15, points); } sampleArc(centerX, trussY, trussH*1.5, 0, TWO_PI, 10, points); return points;
+}
+function generateGoldBarPoints(centerX, centerY, scale) { /* ... as before ... */
+    let points = []; let barH = height * scale * 0.5; let topW = width * scale * 1.0; let bottomW = topW * 0.8; let topY = centerY - barH / 2; let bottomY = centerY + barH / 2; sampleLine(centerX - topW/2, topY, centerX + topW/2, topY, 15, points); sampleLine(centerX + topW/2, topY, centerX + bottomW/2, bottomY, 10, points); sampleLine(centerX + bottomW/2, bottomY, centerX - bottomW/2, bottomY, 12, points); sampleLine(centerX - bottomW/2, bottomY, centerX - topW/2, topY, 10, points); return points;
+}
+function generateDiamondPoints(centerX, centerY, scale) { /* ... as before ... */
+    let points = []; let diaH = height * scale * 1.2; let diaW = diaH * 0.8; let topY = centerY - diaH * 0.3; let girdleY = centerY; let bottomY = centerY + diaH * 0.7; sampleLine(centerX - diaW*0.3, topY, centerX + diaW*0.3, topY, 8, points); sampleLine(centerX - diaW*0.3, topY, centerX - diaW/2, girdleY, 10, points); sampleLine(centerX + diaW*0.3, topY, centerX + diaW/2, girdleY, 10, points); sampleLine(centerX - diaW/2, girdleY, centerX + diaW/2, girdleY, 15, points); sampleLine(centerX - diaW/2, girdleY, centerX, bottomY, 18, points); sampleLine(centerX + diaW/2, girdleY, centerX, bottomY, 18, points); sampleLine(centerX, topY + diaH*0.1, centerX - diaW*0.4, girdleY, 5, points); sampleLine(centerX, topY + diaH*0.1, centerX + diaW*0.4, girdleY, 5, points); sampleLine(centerX, bottomY - diaH*0.1, centerX - diaW*0.2, girdleY, 5, points); sampleLine(centerX, bottomY - diaH*0.1, centerX + diaW*0.2, girdleY, 5, points); return points;
+}
+function generateGlobePoints(centerX, centerY, scale) { /* ... as before ... */
+    let points = []; let radius = height * scale * 1.1; sampleArc(centerX, centerY, radius, 0, TWO_PI, 50, points); sampleArc(centerX - radius*0.3, centerY, radius*0.6, -PI*0.4, PI*0.4, 20, points); sampleArc(centerX + radius*0.4, centerY - radius*0.3, radius*0.3, PI*0.8, PI*1.8, 15, points); sampleArc(centerX + radius*0.3, centerY + radius*0.3, radius*0.4, -PI*0.2, PI*0.8, 15, points); sampleArc(centerX + radius*0.6, centerY + radius*0.6, radius*0.15, 0, TWO_PI, 8, points); return points;
+}
+function generateRollerCoasterPoints(centerX, centerY, scale) { /* ... CORRECTED VERSION ... */
+    let points = []; let trackLength = width * 0.85; let startX = centerX - trackLength / 2; let baseY = centerY + height * scale * 0.5; let hillHeight1 = height * scale * 1.5; let hillHeight2 = height * scale * 1.0; let loopRadius = height * scale * 0.6; let currentX = startX; let currentY = baseY;
+    function addCurvePoints(x1, y1, x2, y2, ctrlYOffset, numSamples, pts) { for (let i = 0; i <= numSamples; i++) { let t = i / numSamples; let px = lerp(x1, x2, t); let py = lerp(y1, y2, t) - sin(t * PI) * ctrlYOffset; pts.push(createVector(px, py)); } }
+    let hill1PeakX = startX + trackLength * 0.2; let hill1PeakY = baseY - hillHeight1; addCurvePoints(currentX, currentY, hill1PeakX, hill1PeakY, hillHeight1 * 0.7, 15, points); currentX = hill1PeakX; currentY = hill1PeakY;
+    let hill1EndX = startX + trackLength * 0.4; let hill1EndY = baseY; addCurvePoints(currentX, currentY, hill1EndX, hill1EndY, -hillHeight1 * 0.6, 15, points); currentX = hill1EndX; currentY = hill1EndY;
+    let loopStartX = startX + trackLength * 0.45; let loopStartY = baseY - loopRadius * 0.1; addCurvePoints(currentX, currentY, loopStartX, loopStartY, loopRadius * 0.2, 5, points); currentX = loopStartX; currentY = loopStartY;
+    let loopCenterX = startX + trackLength * 0.55; let loopBottomY = baseY; let loopCenterY = loopBottomY - loopRadius; sampleArc(loopCenterX, loopCenterY, loopRadius, PI * 0.6, PI * 2.4, 25, points);
+    let loopEndX = startX + trackLength * 0.65; let loopEndY = baseY; currentX = loopCenterX + loopRadius * cos(PI * 0.4); currentY = loopCenterY + loopRadius * sin(PI * 0.4); addCurvePoints(currentX, currentY, loopEndX, loopEndY, -loopRadius*0.3, 5, points); currentX = loopEndX; currentY = loopEndY;
+    let hill2PeakX = startX + trackLength * 0.8; let hill2PeakY = baseY - hillHeight2; addCurvePoints(currentX, currentY, hill2PeakX, hill2PeakY, hillHeight2 * 0.6, 12, points); currentX = hill2PeakX; currentY = hill2PeakY;
+    let endX = startX + trackLength; let endY = baseY; addCurvePoints(currentX, currentY, endX, endY, -hillHeight2 * 0.5, 10, points); return points;
+}
+
+// --- Function to Assign Targets ---
+function assignTargetsToParticles(points) {
+    if (!points || points.length === 0) {
+        for (let p of particles) {
+            p.behavior = BEHAVIOR.FLOW;
+            p.target = p.pos.copy();
+        }
+        shapeFormationActive = false;
+        console.log("Particles set to FLOW");
+        return;
+    }
+    shapeFormationActive = true;
+    console.log(`Assigning ${points.length} target points to ${particles.length} particles.`);
+    shuffle(points, true); // p5 shuffle function, true modifies in place
+    for (let i = 0; i < particles.length; i++) {
+        let p = particles[i];
+        let targetIndex = i % points.length;
+        p.target = points[targetIndex].copy();
+        p.target.add(p5.Vector.random2D().mult(random(1, 8))); // Jitter target
+        p.behavior = BEHAVIOR.SEEK;
+    }
+}
+
+// --- ** THE CRITICAL FIX IS HERE in setShape ** ---
+function setShape(shapeType) {
+    console.log("Setting shape:", shapeType);
+    currentShape = shapeType;
+    let centerX = width / 2;
+    let centerY = height / 2;
+
+    // Clear previous points
+    targetPoints = [];
+
+    // Call the CORRECT generation function based on shapeType
+    switch (shapeType) {
+        case SHAPES.SMILEY:             targetPoints = generateSmileyPoints(centerX, centerY, SHAPE_SCALE); break;
+        case SHAPES.HEART:              targetPoints = generateHeartPoints(centerX, centerY, SHAPE_SCALE); break;
+        case SHAPES.MUSIC_NOTE:         targetPoints = generateMusicNotePoints(centerX, centerY, SHAPE_SCALE); break;
+        case SHAPES.EIFFEL_TOWER:       targetPoints = generateEiffelTowerPoints(centerX, centerY, SHAPE_SCALE); break;
+        case SHAPES.MONA_LISA_FRAME:    targetPoints = generateMonaLisaFramePoints(centerX, centerY, SHAPE_SCALE); break;
+        case SHAPES.MOON:               targetPoints = generateMoonPoints(centerX, centerY, SHAPE_SCALE); break;
+        case SHAPES.GREAT_WALL:         targetPoints = generateGreatWallPoints(centerX, centerY, SHAPE_SCALE); break;
+        case SHAPES.TAJ_MAHAL:          targetPoints = generateTajMahalPoints(centerX, centerY, SHAPE_SCALE); break;
+        case SHAPES.FERRARI:            targetPoints = generateFerrariPoints(centerX, centerY, SHAPE_SCALE); break;
+        case SHAPES.IPHONE:             targetPoints = generateIphonePoints(centerX, centerY, SHAPE_SCALE); break;
+        case SHAPES.COLOSSEUM:          targetPoints = generateColosseumPoints(centerX, centerY, SHAPE_SCALE); break;
+        case SHAPES.LIGHTSABER:         targetPoints = generateLightsaberPoints(centerX, centerY, SHAPE_SCALE); break;
+        case SHAPES.STATUE_OF_LIBERTY:  targetPoints = generateStatueOfLibertyPoints(centerX, centerY, SHAPE_SCALE); break;
+        case SHAPES.PYRAMIDS:           targetPoints = generatePyramidsPoints(centerX, centerY, SHAPE_SCALE); break;
+        case SHAPES.SPACESUIT:          targetPoints = generateSpacesuitPoints(centerX, centerY, SHAPE_SCALE); break;
+        case SHAPES.JETPACK:            targetPoints = generateJetpackPoints(centerX, centerY, SHAPE_SCALE); break;
+        case SHAPES.LEANING_TOWER:      targetPoints = generateLeaningTowerPoints(centerX, centerY, SHAPE_SCALE); break;
+        case SHAPES.TITANIC:            targetPoints = generateTitanicPoints(centerX, centerY, SHAPE_SCALE); break;
+        case SHAPES.ISS:                targetPoints = generateISSPoints(centerX, centerY, SHAPE_SCALE); break;
+        case SHAPES.GOLD_BAR:           targetPoints = generateGoldBarPoints(centerX, centerY, SHAPE_SCALE); break;
+        case SHAPES.DIAMOND:            targetPoints = generateDiamondPoints(centerX, centerY, SHAPE_SCALE); break;
+        case SHAPES.GLOBE:              targetPoints = generateGlobePoints(centerX, centerY, SHAPE_SCALE); break;
+        case SHAPES.ROLLER_COASTER:     targetPoints = generateRollerCoasterPoints(centerX, centerY, SHAPE_SCALE); break;
+        case SHAPES.NONE:
+        default:
+            targetPoints = []; // Ensure it's empty for NONE
+            break;
+    }
+
+    // Assign the generated points (or empty array) to particles
+    assignTargetsToParticles(targetPoints);
+}
+
+
+// =============================================================
+// P5 SETUP & DRAW
+// =============================================================
+function setup() {
+    let canvasContainer = document.getElementById('canvas-container');
+    let canvas = createCanvas(canvasContainer.offsetWidth, canvasContainer.offsetHeight);
+    canvas.parent('canvas-container');
+    colorMode(HSB, 360, 100, 100, 100);
+    background(0);
+
+    audioPlayer = document.getElementById('audioPlayer');
+    uploadProgress = document.getElementById('uploadProgress');
+    statusMsg = document.getElementById('statusMessage');
+
+    while (particles.length < numParticles) {
+        particles.push(new Particle(random(width), random(height)));
+    }
+    // Make sure assignTargetsToParticles is defined before calling it!
+    // Call setShape which internally calls assignTargetsToParticles
+    setShape(SHAPES.NONE); // Start in FLOW mode
+
+    initializeUploadListener();
+    lastModeSwitchTime = millis();
+}
+
+function draw() {
+    background(0, 0, 0, 8);
+    let bgAlpha = shapeFormationActive ? 5 : 15;
+    drawBackgroundElement(bgAlpha);
+
+    if (musicData) {
+        updateMusicAnalysis();
+    } else {
+        currentEnergy = lerp(currentEnergy, 0.1, 0.05);
+        currentCentroid = lerp(currentCentroid, 0.5, 0.05);
+        currentBandwidth = lerp(currentBandwidth, 0.3, 0.05);
+    }
+
+    let now = millis();
+    // Only switch shapes if music is playing
+    if (musicData && audioPlayer && !audioPlayer.paused) {
+        if (shapeFormationActive) {
+            if (now - lastModeSwitchTime > SHAPE_DURATION) {
+                setShape(SHAPES.NONE);
+                lastModeSwitchTime = now;
+            }
+        } else { // Currently flowing
+            // Check conditions to trigger a new shape
+            if (now - lastModeSwitchTime > FLOW_DURATION && currentEnergy > 0.35) {
+                 let availableShapes = Object.values(SHAPES).filter(s => s !== SHAPES.NONE);
+                 if (availableShapes.length > 0) {
+                    let nextShape = random(availableShapes);
+                    setShape(nextShape);
+                    lastModeSwitchTime = now;
+                 }
+            }
+        }
+    } else if (shapeFormationActive) {
+         // If music stops, immediately revert to flow
+         setShape(SHAPES.NONE);
+         lastModeSwitchTime = now;
+    }
+
+    noiseTime += 0.005 * (1 + currentEnergy * 3);
+
+    for (let i = particles.length - 1; i >= 0; i--) {
+        let p = particles[i];
+        p.strokeW = particleStrokeWeight;
+        p.col = [...particleColor];
+        p.maxSpeed = map(currentEnergy, 0, 1, 2, 8);
+        p.maxForce = map(currentEnergy, 0, 1, 0.1, 0.5);
+        p.update();
+        p.display();
+        p.checkEdges();
+    }
+
+    // Optional Debug Drawing
+    /*
+    if (shapeFormationActive && targetPoints.length > 0) {
+        stroke(0, 0, 100, 10); strokeWeight(2);
+        for (let pt of targetPoints) { point(pt.x, pt.y); }
+    }
+    */
+}
+
+// =============================================================
+// BACKGROUND ELEMENT & PARTICLE CLASS
+// =============================================================
+function drawBackgroundElement(alphaVal = 15) { /* ... as before ... */
+    push(); translate(width / 2, height / 2); rotate(bgAngle); let numLines = 10; let maxRadius = max(width, height) * 0.7; strokeWeight(0.5); stroke(particleColor[0], 20, 30, alphaVal); for (let i = 0; i < numLines; i++) { let angle = map(i, 0, numLines, 0, TWO_PI); let x1 = cos(angle) * maxRadius * 0.1; let y1 = sin(angle) * maxRadius * 0.1; let x2 = cos(angle) * maxRadius; let y2 = sin(angle) * maxRadius; line(x1, y1, x2, y2); } pop(); bgAngle += bgRotationSpeed;
+}
+
+class Particle { /* ... as before ... */
+    constructor(x, y) { this.pos = createVector(x, y); this.vel = createVector(random(-1, 1), random(-1, 1)); this.acc = createVector(0, 0); this.target = createVector(x, y); this.behavior = BEHAVIOR.FLOW; this.maxSpeed = 4; this.maxForce = 0.2; this.arrivalThreshold = 10; this.strokeW = 1.5; this.col = [180, 80, 100, 80]; }
+    applyForce(force) { this.acc.add(force); }
+    update() { if (this.behavior === BEHAVIOR.FLOW) { this.flow(); } else if (this.behavior === BEHAVIOR.SEEK) { this.seek(this.target); let distanceToTarget = p5.Vector.dist(this.pos, this.target); if (distanceToTarget < this.arrivalThreshold * 5) { this.vel.mult(0.9); } } this.vel.add(this.acc); this.vel.limit(this.maxSpeed); this.pos.add(this.vel); this.acc.mult(0); }
+    seek(target) { let desired = p5.Vector.sub(target, this.pos); let distance = desired.mag(); let speed = this.maxSpeed; if (distance < 150) { speed = map(distance, 0, 150, 0.1, this.maxSpeed); } desired.setMag(speed); let steer = p5.Vector.sub(desired, this.vel); steer.limit(this.maxForce); this.applyForce(steer); }
+    flow() { let angle = noise(this.pos.x * noiseScale, this.pos.y * noiseScale, noiseTime) * TWO_PI * 4; let force = p5.Vector.fromAngle(angle); force.setMag(0.1 + currentEnergy * 0.3); this.applyForce(force.limit(this.maxForce * 0.6)); }
+    display() { let displayAlpha = this.col[3]; if (this.behavior === BEHAVIOR.SEEK) { displayAlpha = min(100, this.col[3] * 1.3); } stroke(this.col[0], this.col[1], this.col[2], displayAlpha); strokeWeight(this.strokeW); point(this.pos.x, this.pos.y); }
+    checkEdges() { if (this.behavior === BEHAVIOR.FLOW) { if (this.pos.x > width + 10) this.pos.x = -10; if (this.pos.x < -10) this.pos.x = width + 10; if (this.pos.y > height + 10) this.pos.y = -10; if (this.pos.y < -10) this.pos.y = height + 10; } }
+}
+
+// =============================================================
+// MUSIC ANALYSIS & UI
+// =============================================================
+function updateMusicAnalysis() { /* ... as before ... */
+    if (!musicData || !audioPlayer || audioPlayer.paused || audioPlayer.ended) { return; } if (currentDataIndex >= musicData.timeline.length) { return; }
+    let currentAudioTime = audioPlayer.currentTime; while (currentDataIndex < musicData.timeline.length - 1 && musicData.timeline[currentDataIndex + 1] <= currentAudioTime) { currentDataIndex++; } if (currentDataIndex >= musicData.timeline.length) { currentDataIndex = musicData.timeline.length - 1; }
+    let smoothFactor = 0.1; currentEnergy = lerp(currentEnergy, musicData.rms_energy[currentDataIndex] || 0, smoothFactor); currentCentroid = lerp(currentCentroid, musicData.spectral_centroid[currentDataIndex] || 0.5, smoothFactor); currentBandwidth = lerp(currentBandwidth, musicData.spectral_bandwidth[currentDataIndex] || 0.3, smoothFactor); currentBPM = musicData.overall_bpm || 120;
+    particleStrokeWeight = map(currentEnergy, 0, 1, 0.8, 3.5); noiseScale = map(currentBandwidth, 0, 1, 0.005, 0.025);
+    let baseHue = map(currentCentroid, 0, 1, 150, 330); let hueRange = map(currentBandwidth, 0, 1, 60, 240); let hueShift = map(currentEnergy, 0, 1, -hueRange / 2, hueRange / 2); let currentHue = (baseHue + hueShift + 360) % 360;
+    let currentSaturation = map(currentEnergy, 0, 1, 60, 100); let currentAlpha = map(currentEnergy, 0, 1, 50, 95); particleColor = [currentHue, currentSaturation, 100, currentAlpha];
+    if (musicData.overall_bpm > 0) { bgRotationSpeed = map(musicData.overall_bpm, 50, 180, 0.0002, 0.0015, true); }
+}
+
+function initializeUploadListener() { /* ... as before ... */
+    document.getElementById('uploadButton').addEventListener('click', () => {
+        let fileInput = document.getElementById('audioFileInput'); if (fileInput.files.length === 0) { statusMsg.textContent = 'Please select an audio file first.'; return; } let file = fileInput.files[0]; let formData = new FormData(); formData.append('audioFile', file);
+        statusMsg.textContent = 'Preparing upload...'; uploadProgress.style.display = 'block'; uploadProgress.value = 0; audioPlayer.style.display = 'none'; audioPlayer.pause(); audioPlayer.removeAttribute('src'); musicData = null; currentDataIndex = 0; currentShape = SHAPES.NONE; targetPoints = []; assignTargetsToParticles([]); shapeFormationActive = false; lastModeSwitchTime = millis();
+        let xhr = new XMLHttpRequest(); xhr.open('POST', '/analyze', true);
+        xhr.upload.onprogress = function (event) { if (event.lengthComputable) { let percentComplete = Math.round((event.loaded / event.total) * 100); uploadProgress.value = percentComplete; statusMsg.textContent = `Uploading: ${percentComplete}%`; } };
+        xhr.onload = function () { uploadProgress.style.display = 'none'; if (xhr.status === 200) { statusMsg.textContent = 'Processing analysis...'; try { let data = JSON.parse(xhr.responseText); if (data.error) { statusMsg.textContent = `Analysis Error: ${data.error}`; console.error('Analysis Error:', data.error); musicData = null; } else { console.log('Analysis Received'); musicData = data; let objectURL = URL.createObjectURL(file); audioPlayer.src = objectURL; audioPlayer.oncanplaythrough = () => { currentDataIndex = 0; audioPlayer.play(); statusMsg.textContent = 'Visualizing...'; lastModeSwitchTime = millis(); }; audioPlayer.onended = () => { statusMsg.textContent = 'Playback finished.'; musicData = null; setShape(SHAPES.NONE); }; } } catch (e) { statusMsg.textContent = 'Error processing analysis response.'; console.error('Processing Error:', e); musicData = null; } } else { statusMsg.textContent = `Error: Upload/Analysis Failed (Status: ${xhr.status})`; console.error('Upload/Analysis Error:', xhr.statusText); musicData = null; } };
+        xhr.onerror = function () { uploadProgress.style.display = 'none'; statusMsg.textContent = 'Network Error during upload.'; console.error('Network Error'); musicData = null; };
+        statusMsg.textContent = 'Uploading (0%)...'; xhr.send(formData);
+    });
+} // End initializeUploadListener
