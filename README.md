@@ -2,8 +2,6 @@
 
 A web application that transforms uploaded music into mesmerizing, abstract visual experiences, designed to help users relax and enter a "blissful" state. Features dynamically forming shapes based on the music's characteristics.
 
-![Screenshot Placeholder](link_to_your_screenshot_or_gif.png)
-*(Replace the line above with an actual link to a screenshot or GIF of your visualizer!)*
 
 ## Features
 
